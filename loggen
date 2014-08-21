@@ -1,0 +1,54 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require 'timeout'
+require 'bazaar'
+require 'ascii85'
+
+options = {}
+optparse  = OptionParser.new do |opts|
+  opts.banner = 'Usage: lslock <arguments>'
+  opts.separator ''
+  opts.separator 'Optional Arguments:'
+  options[:directory] = '/tmp/loggen'
+  opts.on('-d', '--directory <path>',
+          'the path to write files to (default: /tmp/loggen)') do |directory|
+    options[:directory] = directory
+  end
+  options[:time] = 1
+  opts.on('-t', '--time <integer>',
+    'the amount of time to run for') do |time|
+    options[:time] = time.to_i
+  end
+  opts.on('-f', '--file <full path>',
+    'a single file to write all lines to') do |file|
+    options[:file] = file
+  end
+  options[:length] = 1024
+  opts.on('-l', '--length <bytes>',
+    'the number of bytes to have on a single line') do |length|
+    options[:length] = length.to_i
+  end
+end
+optparse.parse!
+
+abort('You specified a nonexistent directory!') unless File.directory? options[:directory]
+
+# things to do -
+
+def generate_file(
+  file, length, content=Ascii85.encode(IO.read('/dev/urandom', length)).tr!("\n",'')[0..length]
+  )
+    File.open(file,'w') do |f| 
+      # the additional cut on the end here is because the conversion to ascii, and
+      # the additional removal of newlines makes the length a little hard to determine.
+      f << content
+    end
+end
+puts options[:file]
+
+# if we want a specific file
+case options[:file]
+when String
+  generate_file("#{options[:file]}", options[:length])
+end
+
