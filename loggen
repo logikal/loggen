@@ -1,101 +1,112 @@
-  #!/usr/bin/env ruby
-  require 'optparse'
-  require 'timeout'
-  require 'bazaar'
-  require 'ascii85'
+#!/usr/bin/env ruby
+require 'optparse'
+require 'timeout'
+require 'bazaar'
+require 'ascii85'
 
-  options = {}
-  optparse  = OptionParser.new do |opts|
-    opts.banner = 'Usage: lslock <arguments>'
-    opts.separator ''
-    opts.separator 'Optional Arguments:'
-    options[:directory] = './tmp'
-    opts.on('-d', '--directory <path>',
-            'the path to write files to (default: /tmp/loggen)') do |directory|
-      options[:directory] = directory
-    end
-    options[:time] = 1
-    opts.on('-t', '--time <integer>',
-      'the amount of time to run for') do |time|
-      options[:time] = time.to_i
-    end
-    opts.on('-f', '--file <full path>',
-      'a single file to write all lines to') do |file|
-      options[:file] = file
-    end
-    options[:length] = 1024
-    opts.on('-l', '--length <bytes>',
-      'the number of bytes to have on a single line') do |length|
-      options[:length] = length.to_i
-    end
-    options[:minlength] = 512
-    opts.on('-m', '--minlength',
-      'minimum line length. default 512') do |minlength|
-      options[:minlength] = minlength
-    end
-    options[:maxlength] = 1024
-    opts.on('-M', '--maxlength',
-      'maximum line length. default 1024') do |maxlength|
-      options[:maxlength] = maxlength
-    end
-    options[:randomsize] = false
-    opts.on('-r', '--randomsize',
-      'use this option to randomize the length of the lines. You must specify minlength and maxlength.') do |randomsize|
-      options[:randomsize] = true
-    end
+options = {}
+optparse  = OptionParser.new do |opts|
+  opts.banner = 'Usage: lslock <arguments>'
+  opts.separator ''
+  opts.separator 'Optional Arguments:'
+  options[:directory] = './tmp'
+  opts.on('-d', '--directory <path>',
+          'the path to write files to (default: /tmp/loggen)') do |directory|
+    options[:directory] = directory
   end
-  optparse.parse!
+  options[:time] = 1
+  opts.on('-t', '--time <integer>',
+    'the amount of time to run for') do |time|
+    options[:time] = time.to_i
+  end
+  opts.on('-f', '--file <full path>',
+    'a single file to write all lines to') do |file|
+    options[:file] = file
+  end
+  options[:length] = 1024
+  opts.on('-l', '--length <bytes>',
+    'the number of bytes to have on a single line') do |length|
+    options[:length] = length.to_i
+  end
+  options[:minlength] = 512
+  opts.on('-m', '--minlength',
+    'minimum line length. default 512') do |minlength|
+    options[:minlength] = minlength
+  end
+  options[:maxlength] = 1024
+  opts.on('-M', '--maxlength',
+    'maximum line length. default 1024') do |maxlength|
+    options[:maxlength] = maxlength
+  end
+  options[:randomsize] = false
+  opts.on('-r', '--randomsize',
+    'use this option to randomize the length of the lines. You must specify minlength and maxlength.') do |randomsize|
+    options[:randomsize] = true
+  end
+  options[:number_of_files] = 1
+  opts.on('-n', '--number <integer>', 'the number of files to generate.') do |number_of_files|
+    options[:number_of_files] = number_of_files.to_i
+  end
+end
+optparse.parse!
 
 
-  abort('You specified a nonexistent directory!') unless File.directory? options[:directory]
+abort('You specified a nonexistent directory!') unless File.directory? options[:directory]
 
-  # things to do -
+# things to do -
+
+class LogGenerator
+  def initialize (options)
+    @options = options
+    @bytes_written = 0
+  end
+
 
   def generate_file(
-    file, length, content=Ascii85.encode(IO.read('/dev/urandom', length)).tr!("\n", '')[0..length]
-    )
-      File.open(file, 'a+') do |f|
-        # the additional cut on the end here is because the conversion to ascii, and
-        # the additional removal of newlines makes the length a little hard to determine.
-        f << content
-      end
+    file = @options[:file],
+    length = @options[:length],
+    content = Ascii85.encode(IO.read('/dev/urandom', length)).tr!("\n", '')[0..length]
+  )
+    File.open(file, 'a+') do |f|
+      f << content
+    end
+    @bytes_written += length
   end
 
-  # if we want a specific file
-  case options[:file]
-  when String
-    begin
-    count = 0
-    Timeout::timeout(options[:time]) {
-      while true do
-        generate_file("#{options[:file]}", options[:length])
-        count += 1
-      end
-    }
-    rescue Timeout::Error
-      puts "Wrote #{count * options[:length] / 1024} KB to disk in #{options[:time]} seconds"
-      puts "Rate : #{count * options[:length] / 1024 / options[:time]} KB/s"
-      exit 0
+  def generate_many_files(
+    number_of_files = @options[:number_of_files],
+    directory = @options[:directory],
+    length = nil,
+    content = nil
+  )
+    number_of_files.times do
+        generate_file(random_file, generate_length)
     end
   end
 
-  case options[:randomsize]
-  when true
-    begin
-    count = 0
-    filecount = 0 
-    Timeout::timeout(options[:time]) {
-      # while true do
-        length = rand(options[:minlength]..options[:maxlength])
-        puts length        
-        generate_file("#{options[:directory]}/#{Bazaar.heroku}", length)
-        count += length
-        filecount +=1 
-      #end
-    }
-    rescue Timeout::Error
-      puts "Wrote #{count/ 1024} KB to disk in #{filecount} files in#{options[:time]} seconds"
-      puts "Rate : #{count / 1024 / options[:time]} KB/s"
-      exit 0
+  def random_file
+    return "#{@options[:directory]}/#{Bazaar.heroku}"
+  end
+
+  def generate_length
+    if @options[:randomsize]
+      return rand(@options[:minlength]..@options[:maxlength])
+    else 
+      return @options[:length]
     end
   end
+
+  def generate_report
+    puts "Wrote #{@bytes_written / 1024} KB to disk."
+  end
+
+  def run
+    generate_many_files
+    generate_report
+  end
+end
+
+
+newlog = LogGenerator.new(options)
+
+newlog.run
