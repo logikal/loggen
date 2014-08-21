@@ -109,4 +109,5 @@ end
 
 newlog = LogGenerator.new(options)
 
+
 newlog.run
