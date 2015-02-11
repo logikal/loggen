@@ -6,7 +6,7 @@ require 'ascii85'
 
 options = {}
 optparse  = OptionParser.new do |opts|
-  opts.banner = 'Usage: lslock <arguments>'
+  opts.banner = 'Usage: loggen <arguments>'
   opts.separator ''
   opts.separator 'Optional Arguments:'
   options[:directory] = './tmp'
